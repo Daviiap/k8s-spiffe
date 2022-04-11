@@ -12,6 +12,7 @@ data:
       server_port = "8081"
       socket_path = "/run/spire/sockets/agent.sock"
       trust_bundle_path = "/run/spire/bundle/bundle.crt"
+      # Change the trust domain to your own trust domain
       trust_domain = "example.org"
     }
 

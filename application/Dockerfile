@@ -24,7 +24,5 @@ FROM golang:1.18
 WORKDIR /usr/app/
 COPY --from=BUILD_IMAGE /usr/src/app/dist ./
 
-LABEL application=myapp
-
 # Running the application
 CMD ["./src"]
