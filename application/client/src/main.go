@@ -43,14 +43,16 @@ func main() {
 		},
 	}
 
+	var r http.Response
+
+	defer r.Body.Close()
+
 	for {
 		r, err := client.Get(serverAddress)
 
 		if err != nil {
 			log.Fatalf("Error connecting to %q: %v", serverAddress, err)
 		}
-
-		defer r.Body.Close()
 
 		body, err := ioutil.ReadAll(r.Body)
 
