@@ -22,26 +22,31 @@ var (
 )
 
 func main() {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
+
 	defer cancel()
 
 	serverID := spiffeid.RequireFromString(serverSPIFFEID)
 
-	conn, err := spiffetls.DialWithMode(ctx, "tcp", serverAddress,
-		spiffetls.MTLSClientWithSourceOptions(
-			tlsconfig.AuthorizeID(serverID),
-			workloadapi.WithClientOptions(workloadapi.WithAddr(socketPath)),
-		))
-	if err != nil {
-		log.Fatalf("Unable to create TLS connection: %v", err)
-	}
-	defer conn.Close()
+	for {
+		conn, err := spiffetls.DialWithMode(ctx, "tcp", serverAddress,
+			spiffetls.MTLSClientWithSourceOptions(
+				tlsconfig.AuthorizeID(serverID),
+				workloadapi.WithClientOptions(workloadapi.WithAddr(socketPath)),
+			))
 
-	fmt.Fprintf(conn, "Hello server\n")
+		if err != nil {
+			log.Fatalf("Unable to create TLS connection: %v", err)
+		}
 
-	status, err := bufio.NewReader(conn).ReadString('\n')
-	if err != nil && err != io.EOF {
-		log.Fatalf("Unable to read server response: %v", err)
+		fmt.Fprintf(conn, "Hello server\n")
+
+		status, err := bufio.NewReader(conn).ReadString('\n')
+		if err != nil && err != io.EOF {
+			log.Fatalf("Unable to read server response: %v", err)
+		}
+		log.Printf("Server says: %q", status)
+
+		time.Sleep(5 * time.Second)
 	}
-	log.Printf("Server says: %q", status)
 }
