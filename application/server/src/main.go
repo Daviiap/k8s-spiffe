@@ -1,15 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"context"
-	"fmt"
-	"io"
 	"log"
-	"net/http"
+	"net"
 	"os"
-	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/spiffetls"
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 )
@@ -20,52 +19,47 @@ var (
 	clientSPIFFEID = os.Getenv("clientSPIFFEID")
 )
 
-func getSVID() {
-	ctxtest, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-
-	defer cancel()
-
-	svid, err := workloadapi.FetchX509SVID(ctxtest, workloadapi.WithAddr(socketPath))
-
-	if err != nil {
-		fmt.Println("Error fetching SVID")
-	} else {
-		fmt.Println("Success fetching SVID")
-		fmt.Println(svid.ID)
-	}
-}
-
 func main() {
-	getSVID()
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Set up a `/` resource handler
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		log.Println("Request received")
-		_, _ = io.WriteString(w, "Success!!!")
-	})
-
-	// Create a `workloadapi.X509Source`, it will connect to Workload API using provided socket.
-	// If socket path is not defined using `workloadapi.SourceOption`, value from environment variable `SPIFFE_ENDPOINT_SOCKET` is used.
-	source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr(socketPath)))
-	if err != nil {
-		log.Fatalf("Unable to create X509Source: %v", err)
-	}
-	defer source.Close()
-
-	// Allowed SPIFFE ID
 	clientID := spiffeid.RequireFromString(clientSPIFFEID)
 
-	// Create a `tls.Config` to allow mTLS connections, and verify that presented certificate has SPIFFE ID `spiffe://example.org/client`
-	tlsConfig := tlsconfig.MTLSServerConfig(source, source, tlsconfig.AuthorizeID(clientID))
-	server := &http.Server{
-		Addr:      serverAddress,
-		TLSConfig: tlsConfig,
+	listener, err := spiffetls.ListenWithMode(ctx, "tcp", serverAddress,
+		spiffetls.MTLSServerWithSourceOptions(
+			tlsconfig.AuthorizeID(clientID),
+			workloadapi.WithClientOptions(workloadapi.WithAddr(socketPath)),
+		))
+	if err != nil {
+		log.Fatalf("Unable to create TLS listener: %v", err)
 	}
+	defer listener.Close()
 
-	if err := server.ListenAndServeTLS("", ""); err != nil {
-		log.Fatalf("Error on serve: %v", err)
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			go handleError(err)
+		}
+		go handleConnection(conn)
 	}
+}
+
+func handleConnection(conn net.Conn) {
+	defer conn.Close()
+
+	req, err := bufio.NewReader(conn).ReadString('\n')
+	if err != nil {
+		log.Printf("Error reading incoming data: %v", err)
+		return
+	}
+	log.Printf("Client says: %q", req)
+
+	if _, err = conn.Write([]byte("Hello client\n")); err != nil {
+		log.Printf("Unable to send response: %v", err)
+		return
+	}
+}
+
+func handleError(err error) {
+	log.Printf("Unable to accept connection: %v", err)
 }

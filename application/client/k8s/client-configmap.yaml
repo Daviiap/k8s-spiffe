@@ -5,5 +5,5 @@ metadata:
   namespace: app
 data:
   socketPath: "unix:///run/spire/sockets/agent.sock"
-  serverAddress: "https://server:55555"
+  serverAddress: "server:55555"
   serverSPIFFEID: "spiffe://example.org/ns/app/server"
