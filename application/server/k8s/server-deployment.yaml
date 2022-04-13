@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: server
+  namespace: app
+  labels:
+    app: server
+spec:
+  selector:
+    matchLabels:
+      app: server
+  template:
+    metadata:
+      labels:
+        app: server
+    spec:
+      containers:
+        - name: server
+          ports:
+            - containerPort: 55555
+          env:
+            - name: socketPath
+              valueFrom:
+                configMapKeyRef:
+                  name: server-cm
+                  key: socketPath
+            - name: serverAddress
+              valueFrom:
+                configMapKeyRef:
+                  name: server-cm
+                  key: serverAddress
+            - name: clientSPIFFEID
+              valueFrom:
+                configMapKeyRef:
+                  name: server-cm
+                  key: clientSPIFFEID
+          # set imagePullPolicy to Never if you are using minikube with minikube's docker
+          imagePullPolicy: Never
+          image: server
+          volumeMounts:
+            - name: spire-agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+          resources:
+            limits:
+              cpu: "0.5"
+              memory: "128Mi"
+      volumes:
+        - name: spire-agent-socket
+          hostPath:
+            path: /run/spire/sockets
+            type: Directory
