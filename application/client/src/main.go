@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -19,7 +20,24 @@ var (
 	serverSPIFFEID = os.Getenv("serverSPIFFEID")
 )
 
+func getSVID() {
+	ctxtest, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+
+	defer cancel()
+
+	svid, err := workloadapi.FetchX509SVID(ctxtest, workloadapi.WithAddr(socketPath))
+
+	if err != nil {
+		fmt.Println("Error fetching SVID")
+	} else {
+		fmt.Println("Success fetching SVID")
+		fmt.Println(svid.ID)
+	}
+}
+
 func main() {
+	getSVID()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -42,10 +60,6 @@ func main() {
 			TLSClientConfig: tlsConfig,
 		},
 	}
-
-	var r http.Response
-
-	defer r.Body.Close()
 
 	for {
 		r, err := client.Get(serverAddress)
