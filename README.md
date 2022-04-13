@@ -62,9 +62,19 @@ Once the agent is registered, let's register the Workload.
 ```sh
 kubectl exec -n spire spire-server-0 -- \
     /opt/spire/bin/spire-server entry create \
-    -spiffeID spiffe://example.org/ns/app \
+    -spiffeID spiffe://example.org/ns/app/server \
     -parentID spiffe://example.org/ns/spire/sa/spire-agent \
     -selector k8s:ns:app \
+    -selector k8s:container-name:server
+```
+
+```sh
+kubectl exec -n spire spire-server-0 -- \
+    /opt/spire/bin/spire-server entry create \
+    -spiffeID spiffe://example.org/ns/app/client \
+    -parentID spiffe://example.org/ns/spire/sa/spire-agent \
+    -selector k8s:ns:app \
+    -selector k8s:container-name:client
 ```
 
 ## Running the application

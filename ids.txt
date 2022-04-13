@@ -1,0 +1,19 @@
+==============| AGENT |==============
+
+Entry ID         : e4c70d86-5d3f-4436-a274-3e2bf68d02ea
+SPIFFE ID        : spiffe://example.org/ns/spire/sa/spire-agent
+Parent ID        : spiffe://example.org/spire/server
+Revision         : 0
+TTL              : default
+Selector         : k8s_sat:agent_ns:spire
+Selector         : k8s_sat:agent_sa:spire-agent
+Selector         : k8s_sat:cluster:demo-cluster
+
+==============| WORKLOAD |==============
+
+Entry ID         : 4ed10093-6d8d-4630-87eb-87e35a06c7bf
+SPIFFE ID        : spiffe://example.org/ns/app
+Parent ID        : spiffe://example.org/ns/spire/sa/spire-agent
+Revision         : 0
+TTL              : default
+Selector         : k8s:ns:app

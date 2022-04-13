@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: client-cm
+  namespace: app
+data:
+  socketPath: "unix:///run/spire/sockets/agent.sock"
+  serverAddress: "server:55555"
+  serverSPIFFEID: "spiffe://example.org/ns/app/server"
