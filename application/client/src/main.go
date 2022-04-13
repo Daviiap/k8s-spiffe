@@ -1,16 +1,14 @@
 package main
 
 import (
-	"bufio"
 	"context"
-	"fmt"
-	"io"
+	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/go-spiffe/v2/spiffetls"
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 )
@@ -22,51 +20,46 @@ var (
 )
 
 func main() {
-	// Setup context
-	ctxtest, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	svid, err := workloadapi.FetchX509SVID(ctxtest, workloadapi.WithAddr(socketPath))
-
+	// Create a `workloadapi.X509Source`, it will connect to Workload API using provided socket path
+	// If socket path is not defined using `workloadapi.SourceOption`, value from environment variable `SPIFFE_ENDPOINT_SOCKET` is used.
+	source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr(socketPath)))
 	if err != nil {
-		fmt.Println("Error fetching SVID")
-	} else {
-		fmt.Println("Success fetching SVID")
-		fmt.Println(svid.ID)
+		log.Fatalf("Unable to create X509Source %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
+	defer source.Close()
 
 	// Allowed SPIFFE ID
 	serverID := spiffeid.RequireFromString(serverSPIFFEID)
 
-	// Create a TLS connection.
-	// The client expects the server to present an SVID with the spiffeID: 'spiffe://example.org/ns/app/server'
-
-	// An alternative when creating Dial is using `spiffetls.Dial` that uses environment variable `SPIFFE_ENDPOINT_SOCKET`
-	conn, err := spiffetls.DialWithMode(ctx, "tcp", serverAddress,
-		spiffetls.MTLSClientWithSourceOptions(
-			tlsconfig.AuthorizeID(serverID),
-			workloadapi.WithClientOptions(workloadapi.WithAddr(socketPath)),
-		))
-
-	if err != nil {
-		log.Fatalf("Unable to create TLS connection: %v", err)
+	// Create a `tls.Config` to allow mTLS connections, and verify that presented certificate has SPIFFE ID `spiffe://example.org/server`
+	tlsConfig := tlsconfig.MTLSClientConfig(source, source, tlsconfig.AuthorizeID(serverID))
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: tlsConfig,
+		},
 	}
 
-	defer conn.Close()
+	for {
+		r, err := client.Get(serverAddress)
 
-	// Send a message to the server using the TLS connection
-	fmt.Fprintf(conn, "Hello server\n")
+		if err != nil {
+			log.Fatalf("Error connecting to %q: %v", serverAddress, err)
+		}
 
-	// Read server response
-	status, err := bufio.NewReader(conn).ReadString('\n')
+		defer r.Body.Close()
 
-	if err != nil && err != io.EOF {
-		log.Fatalf("Unable to read server response: %v", err)
+		body, err := ioutil.ReadAll(r.Body)
+
+		if err != nil {
+			log.Fatalf("Unable to read body: %v", err)
+		}
+
+		log.Printf("%s", body)
+
+		time.Sleep(10 * time.Second)
 	}
-
-	log.Printf("Server says: %q", status)
 }

@@ -1,16 +1,15 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"log"
-	"net"
+	"net/http"
 	"os"
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/go-spiffe/v2/spiffetls"
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 )
@@ -39,62 +38,34 @@ func getSVID() {
 func main() {
 	getSVID()
 
-	// Setup context
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Set up a `/` resource handler
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		log.Println("Request received")
+		_, _ = io.WriteString(w, "Success!!!")
+	})
+
+	// Create a `workloadapi.X509Source`, it will connect to Workload API using provided socket.
+	// If socket path is not defined using `workloadapi.SourceOption`, value from environment variable `SPIFFE_ENDPOINT_SOCKET` is used.
+	source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr(socketPath)))
+	if err != nil {
+		log.Fatalf("Unable to create X509Source: %v", err)
+	}
+	defer source.Close()
+
 	// Allowed SPIFFE ID
-	fmt.Println("Getting client spiffeid")
 	clientID := spiffeid.RequireFromString(clientSPIFFEID)
-	fmt.Println("Client spiffeID:", clientID.String())
 
-	// Creates a TLS listener
-	// The server expects the client to present an SVID with the spiffeID: 'spiffe://example.org/ns/app/client'
-	//
-	// An alternative when creating Listen is using `spiffetls.Listen` that uses environment variable `SPIFFE_ENDPOINT_SOCKET`
-	fmt.Println("Creating listenner")
-	listener, err := spiffetls.ListenWithMode(ctx, "tcp", serverAddress,
-		spiffetls.MTLSServerWithSourceOptions(
-			tlsconfig.AuthorizeID(clientID),
-			workloadapi.WithClientOptions(workloadapi.WithAddr(socketPath)),
-		))
-	fmt.Println("Listenner created")
-
-	if err != nil {
-		log.Fatalf("Unable to create TLS listener: %v", err)
+	// Create a `tls.Config` to allow mTLS connections, and verify that presented certificate has SPIFFE ID `spiffe://example.org/client`
+	tlsConfig := tlsconfig.MTLSServerConfig(source, source, tlsconfig.AuthorizeID(clientID))
+	server := &http.Server{
+		Addr:      serverAddress,
+		TLSConfig: tlsConfig,
 	}
 
-	defer listener.Close()
-
-	// Handle connections
-	fmt.Println("Listening on:", listener.Addr().String())
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			go handleError(err)
-		}
-		go handleConnection(conn)
+	if err := server.ListenAndServeTLS("", ""); err != nil {
+		log.Fatalf("Error on serve: %v", err)
 	}
-}
-
-func handleConnection(conn net.Conn) {
-	defer conn.Close()
-
-	// Read incoming data into buffer
-	req, err := bufio.NewReader(conn).ReadString('\n')
-	if err != nil {
-		log.Printf("Error reading incoming data: %v", err)
-		return
-	}
-	log.Printf("Client says: %q", req)
-
-	// Send a response back to the client
-	if _, err = conn.Write([]byte("Hello client\n")); err != nil {
-		log.Printf("Unable to send response: %v", err)
-		return
-	}
-}
-
-func handleError(err error) {
-	log.Printf("Unable to accept connection: %v", err)
 }

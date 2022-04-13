@@ -6,7 +6,6 @@ require github.com/spiffe/go-spiffe/v2 v2.0.0
 
 require (
 	github.com/golang/protobuf v1.4.2 // indirect
-	github.com/gorilla/mux v1.8.0
 	github.com/zeebo/errs v1.2.2 // indirect
 	golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2 // indirect
 	golang.org/x/net v0.0.0-20190311183353-d8887717615a // indirect
