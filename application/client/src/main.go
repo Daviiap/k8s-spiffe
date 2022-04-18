@@ -21,7 +21,23 @@ var (
 	serverSPIFFEID = os.Getenv("serverSPIFFEID")
 )
 
+func fetchSVID() {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	svid, err := workloadapi.FetchX509SVID(ctx, workloadapi.WithAddr(socketPath))
+
+	if err != nil {
+		fmt.Println("Error fetching SVID")
+	} else {
+		fmt.Println("Success fetching SVID")
+		fmt.Println(svid.ID)
+	}
+}
+
 func main() {
+	fetchSVID()
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	defer cancel()
@@ -39,7 +55,7 @@ func main() {
 			log.Fatalf("Unable to create TLS connection: %v", err)
 		}
 
-		fmt.Fprintf(conn, "Hello server\n")
+		fmt.Fprintf(conn, "Hello server!\n")
 
 		status, err := bufio.NewReader(conn).ReadString('\n')
 		if err != nil && err != io.EOF {

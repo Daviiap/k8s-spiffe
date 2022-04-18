@@ -3,9 +3,11 @@ package main
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"log"
 	"net"
 	"os"
+	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/spiffetls"
@@ -19,7 +21,23 @@ var (
 	clientSPIFFEID = os.Getenv("clientSPIFFEID")
 )
 
+func fetchSVID() {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	svid, err := workloadapi.FetchX509SVID(ctx, workloadapi.WithAddr(socketPath))
+
+	if err != nil {
+		fmt.Println("Error fetching SVID")
+	} else {
+		fmt.Println("Success fetching SVID")
+		fmt.Println(svid.ID)
+	}
+}
+
 func main() {
+	fetchSVID()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -54,7 +72,7 @@ func handleConnection(conn net.Conn) {
 	}
 	log.Printf("Client says: %q", req)
 
-	if _, err = conn.Write([]byte("Hello client\n")); err != nil {
+	if _, err = conn.Write([]byte("Hello client!\n")); err != nil {
 		log.Printf("Unable to send response: %v", err)
 		return
 	}
